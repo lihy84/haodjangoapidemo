@@ -17,6 +17,10 @@ def table_metadata(request):
         return HttpResponseBadRequest(content='{"error": "No database connection string provided."}', content_type='application/json')
 
     # If no table name was provided, return a 400 (Bad Request) response
+    if not table_name:
+        return HttpResponseBadRequest(content='{"error": "No table name provided."}', content_type='application/json')
+
+    # Try to connect to the database and get the table metadata
     try:
         engine = create_engine(db_string)
         inspector = inspect(engine)
