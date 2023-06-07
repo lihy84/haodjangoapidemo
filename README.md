@@ -1,6 +1,6 @@
 # Django PostgreSQL Metadata API
 
-This Django application provides an API to retrieve metadata from a PostgreSQL database.
+This Django application provides an API to retrieve metadata from a specific table in a PostgreSQL database.
 
 ## Installation
 
