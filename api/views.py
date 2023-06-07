@@ -1,57 +1,50 @@
-from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseBadRequest
 from sqlalchemy import create_engine, inspect
-from sqlalchemy.exc import OperationalError
-import json
+import sqlalchemy.exc
+from .models import TableMetadata, ColumnMetadata
 
 # Create your views here.
 
 # API endpoint for getting table metadata
-
-
 def table_metadata(request):
-
-    # Get the database connection string from the request
+    # Get the database connection string and table name from the GET request
     db_string = request.GET.get("db_string")
+    # Get the table name from the GET request
+    table_name = request.GET.get("table_name")
 
-    # If no connection string is provided, return an error
+    # If no database connection string was provided, return a 400 (Bad Request) response
     if not db_string:
-        return JsonResponse({"error": "No database connection string provided."}, status=400)
+        return HttpResponseBadRequest(content='{"error": "No database connection string provided."}', content_type='application/json')
 
-    # If the connection string is not a string, return an error
+    # If no table name was provided, return a 400 (Bad Request) response
     try:
-        # Try to parse the connection string as JSON
         engine = create_engine(db_string)
-        # Get the table metadata
-        insp = inspect(engine)
+        inspector = inspect(engine)
+    except Exception as e:
+        return HttpResponseBadRequest(content='{"error": "Could not connect to database. Error: ' + str(e) + '"}', content_type='application/json')
 
-        # Get the table names
-        result = []
+    # If the table does not exist in the database, return a 400 (Bad Request) response
+    if table_name not in inspector.get_table_names():
+        return HttpResponseBadRequest(content='{"error": "Table does not exist in the database."}', content_type='application/json')
 
-        # Loop through the tables and get the metadata
-        for table_name in insp.get_table_names():
-            # Raw SQL for getting the number of rows in the table
-            select_sql_raw = f"SELECT COUNT(*) FROM {table_name}"
+    # Raw SQL for getting the number of rows in the table
+    select_sql_raw = f"SELECT COUNT(*) FROM {table_name}"
 
-            # If the database is PostgreSQL, use the public schema and double quote the table name incase it is capitalized
-            if (engine.dialect.name == 'postgresql'):
-                select_sql_raw = f"SELECT COUNT(*) FROM public.\"{table_name}\""
+    # If the database is PostgreSQL, use the public schema and double quote the table name incase it is capitalized
+    if (engine.dialect.name == 'postgresql'):
+        select_sql_raw = f"SELECT COUNT(*) FROM public.\"{table_name}\""
 
-            # Get the columns and their types
-            columns = [{"col_name": c["name"], "col_type": str(
-                c["type"])} for c in insp.get_columns(table_name)]
+    # Get the table metadata
+    try:
+        columns = inspector.get_columns(table_name)
+        num_rows = engine.execute(select_sql_raw).fetchone()[0]
+    except Exception as e:
+        return HttpResponseBadRequest(content='{"error": "Could not retrieve table metadata. Error: ' + str(e) + '"}', content_type='application/json')
 
-            # Get the number of rows in the table
-            num_rows = engine.execute(select_sql_raw).scalar()
+    # Create the TableMetadata object
+    col_metadata = [ColumnMetadata(col['name'], col['type']) for col in columns]
+    # Create the TableMetadata object
+    table_metadata = TableMetadata(col_metadata, num_rows, inspector.default_schema_name, db_string)
 
-            # Add the table metadata to the result
-            result.append({"columns": columns, "num_rows": num_rows,
-                          "schema": insp.get_schema_names()[0], "database": db_string})
-
-        # Return the result as JSON
-        return JsonResponse(result, safe=False)
-
-    # If the connection string is not a string, return an error
-    except OperationalError as e:
-        # Return the error as JSON, TODO: return the error code
-        return JsonResponse({"error": str(e.code)}, status=400)
+    # Return the table metadata as a JSON response
+    return JsonResponse(table_metadata.to_dict(), safe=False)

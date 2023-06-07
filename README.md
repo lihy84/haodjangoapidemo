@@ -65,12 +65,14 @@ The server will start, and you can access the API at `http://localhost:8000/api/
 
 ## Usage
 
-To use the API, make a GET request to the /api/table_metadata endpoint with your PostgreSQL connection string as the db_string query parameter. The API will return a JSON array of the metadata for all tables in the database.
+To use the API, make a GET request to the /api/table_metadata endpoint with your PostgreSQL connection string as the db_string query parameter. Optionally, you can also provide a table_name query parameter to get metadata for a specific table.
+
+The API will return a JSON array of the metadata for all tables in the database (or for the specified table if table_name is provided).
 
 ## Example
 
 ```bash
-curl -X GET "http://localhost:8000/api/table_metadata?db_string=postgresql://postgres:postgres@localhost:5432/postgres"
+curl -X GET "http://localhost:8000/api/table_metadata?db_string=postgresql://postgres:postgres@localhost:5432/postgres&table_name=some_table"
 ```
 
 ## Future Improvements
